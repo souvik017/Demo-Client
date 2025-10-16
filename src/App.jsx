@@ -6,21 +6,13 @@ import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Navbar from './components/Navbar';
 
-// ProtectedRoute component
-function ProtectedRoute({ user, children }) {
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-}
-
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      setUser(u);
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
       setLoading(false);
     });
     return unsubscribe;
@@ -38,31 +30,26 @@ function App() {
     <Router>
       <Navbar user={user} />
       <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+        {/* Public Route */}
+        <Route
+          path="/login"
+          element={user ? <Navigate to="/dashboard" /> : <Login />}
+        />
 
         {/* Protected Routes */}
         <Route
           path="/dashboard"
-          element={
-            <ProtectedRoute user={user}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
+          element={user ? <Dashboard /> : <Navigate to="/login" />}
         />
         <Route
           path="/profile"
-          element={
-            <ProtectedRoute user={user}>
-              <Profile />
-            </ProtectedRoute>
-          }
+          element={user ? <Profile /> : <Navigate to="/login" />}
         />
 
-        {/* Catch-all redirect */}
+        {/* Default redirect */}
         <Route
           path="*"
-          element={<Navigate to={user ? '/dashboard' : '/login'} replace />}
+          element={<Navigate to={user ? "/dashboard" : "/login"} />}
         />
       </Routes>
     </Router>
