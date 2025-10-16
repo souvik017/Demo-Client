@@ -6,6 +6,14 @@ import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Navbar from './components/Navbar';
 
+// ProtectedRoute component
+function ProtectedRoute({ user, children }) {
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,29 +27,39 @@ function App() {
   }, []);
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   return (
     <Router>
       <Navbar user={user} />
       <Routes>
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        {/* Public Routes */}
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
 
-        {/* Protected routes */}
+        {/* Protected Routes */}
         <Route
           path="/dashboard"
-          element={user ? <Dashboard /> : <Navigate to="/login" replace />}
+          element={
+            <ProtectedRoute user={user}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/profile"
-          element={user ? <Profile /> : <Navigate to="/login" replace />}
+          element={
+            <ProtectedRoute user={user}>
+              <Profile />
+            </ProtectedRoute>
+          }
         />
 
-        {/* Default redirect */}
+        {/* Catch-all redirect */}
         <Route
           path="*"
           element={<Navigate to={user ? '/dashboard' : '/login'} replace />}
