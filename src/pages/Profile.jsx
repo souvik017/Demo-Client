@@ -97,46 +97,32 @@ export default function Profile() {
         setError(null);
 
         const token = localStorage.getItem("authToken");
-        
-        if (!token) {
-          throw new Error("No authentication token found");
-        }
+        if (!token) throw new Error("No authentication token found");
 
-        // Set default authorization header
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-        // Fetch user data with timeout
         const resUser = await axios.get("/users/me", { timeout: 10000 });
-        
         if (!isMounted) return;
 
         const currentUser = resUser.data.user;
-        
-        if (!currentUser) {
-          throw new Error("User data not found");
-        }
+        if (!currentUser) throw new Error("User data not found");
 
         setUser(currentUser);
 
-        // Fetch user's posts with timeout
         const resPosts = await axios.get(`/posts?userId=${currentUser.uid}`, {
-          timeout: 10000
+          timeout: 10000,
         });
 
         if (!isMounted) return;
-
         const userPosts = resPosts.data.posts || [];
         setPosts(userPosts);
-
       } catch (err) {
         console.error("Profile fetch error:", err);
-        
         if (!isMounted) return;
 
         const errorMessage = err.response?.data?.message || err.message || "Failed to load profile";
         setError(errorMessage);
 
-        // If authentication error, redirect to login
         if (err.response?.status === 401 || err.response?.status === 403) {
           localStorage.removeItem("authToken");
           setTimeout(() => {
@@ -144,9 +130,7 @@ export default function Profile() {
           }, 2000);
         }
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -157,51 +141,29 @@ export default function Profile() {
     };
   }, []);
 
-  // Real-time socket updates with error handling
+  // Real-time socket updates
   useEffect(() => {
     if (!user) return;
-
     const socketInstance = initializeSocket();
-    
     if (!socketInstance) {
       console.warn("Socket connection could not be established");
       return;
     }
 
     const handlePostCreated = (post) => {
-      try {
-        if (post.user?.uid === user.uid) {
-          setPosts((prev) => {
-            // Prevent duplicates
-            if (prev.some(p => p._id === post._id)) {
-              return prev;
-            }
-            return [post, ...prev];
-          });
-        }
-      } catch (error) {
-        console.error("Error handling post created:", error);
+      if (post.user?.uid === user.uid) {
+        setPosts((prev) => (prev.some((p) => p._id === post._id) ? prev : [post, ...prev]));
       }
     };
 
     const handlePostUpdated = (updatedPost) => {
-      try {
-        if (updatedPost.user?.uid === user.uid) {
-          setPosts((prev) =>
-            prev.map((p) => (p._id === updatedPost._id ? updatedPost : p))
-          );
-        }
-      } catch (error) {
-        console.error("Error handling post updated:", error);
+      if (updatedPost.user?.uid === user.uid) {
+        setPosts((prev) => prev.map((p) => (p._id === updatedPost._id ? updatedPost : p)));
       }
     };
 
     const handlePostDeleted = ({ _id }) => {
-      try {
-        setPosts((prev) => prev.filter((p) => p._id !== _id));
-      } catch (error) {
-        console.error("Error handling post deleted:", error);
-      }
+      setPosts((prev) => prev.filter((p) => p._id !== _id));
     };
 
     socketInstance.on("post:created", handlePostCreated);
@@ -215,29 +177,21 @@ export default function Profile() {
     };
   }, [user]);
 
-  // Handle logout with loading state
+  // Handle logout
   const handleLogout = useCallback(async () => {
     if (isLoggingOut) return;
 
     try {
       setIsLoggingOut(true);
-
-      // Sign out from Firebase
       await signOut(auth);
-
-      // Clear authentication token
       localStorage.removeItem("authToken");
 
-      // Disconnect socket
       if (socket) {
         socket.disconnect();
         socket = null;
       }
 
-      // Clear axios default headers
       delete axios.defaults.headers.common["Authorization"];
-
-      // Redirect to login
       window.location.href = "/login";
     } catch (error) {
       console.error("Logout error:", error);
@@ -246,31 +200,30 @@ export default function Profile() {
     }
   }, [isLoggingOut]);
 
-  // Handle post updates from child components
   const handlePostUpdated = useCallback((updated) => {
-    setPosts((prev) =>
-      prev.map((p) => (p._id === updated._id ? updated : p))
-    );
+    setPosts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)));
   }, []);
 
   const handlePostDeleted = useCallback((id) => {
     setPosts((prev) => prev.filter((p) => p._id !== id));
   }, []);
 
-  // Memoize empty state
-  const emptyState = useMemo(() => (
-    <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-          <User className="w-8 h-8 text-gray-400" />
+  const emptyState = useMemo(
+    () => (
+      <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+            <User className="w-8 h-8 text-gray-400" />
+          </div>
+          <p className="text-gray-500 font-medium">No posts yet</p>
+          <p className="text-gray-400 text-sm">Start sharing something amazing!</p>
         </div>
-        <p className="text-gray-500 font-medium">No posts yet</p>
-        <p className="text-gray-400 text-sm">Start sharing something amazing!</p>
       </div>
-    </div>
-  ), []);
+    ),
+    []
+  );
 
-  // Loading state
+  // Loading
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center h-screen gap-4">
@@ -280,24 +233,42 @@ export default function Profile() {
     );
   }
 
-  // Error state
+  // Error
   if (error) {
     return (
       <div className="flex flex-col justify-center items-center h-screen gap-4 px-4">
         <AlertCircle className="w-16 h-16 text-red-500" />
         <h2 className="text-xl font-semibold text-gray-900">Failed to Load Profile</h2>
         <p className="text-gray-600 text-center max-w-md">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-6 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
-        >
-          Retry
-        </button>
+
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
+          >
+            Retry
+          </button>
+
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="px-6 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoggingOut ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Logging out...
+              </span>
+            ) : (
+              "Logout"
+            )}
+          </button>
+        </div>
       </div>
     );
   }
 
-  // No user state (shouldn't happen, but safety check)
+  // No user
   if (!user) {
     return (
       <div className="flex flex-col justify-center items-center h-screen gap-4">
@@ -307,39 +278,27 @@ export default function Profile() {
     );
   }
 
+  // Main profile
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
-      {/* Profile Header */}
       <header className="bg-gradient-to-r from-blue-500 via-pink-500 to-red-600 p-6 shadow-lg rounded-b-3xl">
         <div className="max-w-3xl mx-auto flex flex-col items-center">
-          {/* Avatar with fallback */}
           <div className="relative">
-            {user.avatar && !avatarError ? (
-              <img
-                src={getAvatarUrl()}
-                alt={`${user.displayName || 'User'}'s profile`}
-                onError={handleAvatarError}
-                className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-                loading="eager"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <img
-                src={getAvatarUrl()}
-                alt={`${user.displayName || 'User'}'s profile`}
-                className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-                loading="eager"
-              />
-            )}
+            <img
+              src={getAvatarUrl()}
+              alt={`${user.displayName || "User"}'s profile`}
+              onError={handleAvatarError}
+              className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+              loading="eager"
+              referrerPolicy="no-referrer"
+            />
           </div>
 
           <h1 className="text-3xl font-bold text-white mt-3">
-            {user.displayName || user.email?.split('@')[0] || "User"}
+            {user.displayName || user.email?.split("@")[0] || "User"}
           </h1>
-          
-          {user.email && (
-            <p className="text-white/80 text-sm mt-1">{user.email}</p>
-          )}
+
+          {user.email && <p className="text-white/80 text-sm mt-1">{user.email}</p>}
 
           <button
             onClick={handleLogout}
@@ -359,19 +318,17 @@ export default function Profile() {
         </div>
       </header>
 
-      {/* Post Form */}
       <div className="max-w-2xl mx-auto mt-6 px-4">
         <Suspense fallback={<PostSkeleton />}>
           <PostForm />
         </Suspense>
       </div>
 
-      {/* User Posts */}
       <main className="max-w-3xl mx-auto mt-6 space-y-4 px-4">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           Your Posts ({posts.length})
         </h2>
-        
+
         {posts.length === 0 ? (
           emptyState
         ) : (
